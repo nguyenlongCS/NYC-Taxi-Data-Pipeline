@@ -1,7 +1,7 @@
 1. Tải dataset từ Kaggle: https://www.kaggle.com/datasets/elemento/nyc-yellow-taxi-trip-data?resource=download
 2. Giải nén và đặt tên /raw_data
 3. Xem tên file và dung lượng từng file (cmd: dir raw_data)
-	Directory of G:\My Drive\Project\NYC Taxi Data Pipeline\raw_data
+	Directory of D:\Project\NYC-Taxi-Data-Pipeline\raw_data
 	07/01/2026  02:20 PM    <DIR>          .
 	07/01/2026  02:20 PM    <DIR>          ..
 	12/09/2021  07:31 AM     1,985,964,692 yellow_tripdata_2015-01.csv
@@ -24,7 +24,7 @@
 	print(f"Tổng số dòng: {total_rows:,}")
 
 	output:
-	PS G:\My Drive\Project\NYC Taxi Data Pipeline> python main.py
+	PS D:\Project\NYC-Taxi-Data-Pipeline> python main.py
 	['VendorID', 'tpep_pickup_datetime', 'tpep_dropoff_datetime', 'passenger_count', 'trip_distance', 'pickup_longitude', 'pickup_latitude', 'RateCodeID', 'store_and_fwd_flag', 'dropoff_longitude', 'dropoff_latitude', 	'payment_type', 'fare_amount', 'extra', 'mta_tax', 'tip_amount', 'tolls_amount', 'improvement_surcharge', 'total_amount']
 	VendorID                   int64
 	tpep_pickup_datetime         str
@@ -55,7 +55,7 @@
 	[5 rows x 19 columns]
 5. Tạo file: docker-compose.yml và 01_create_schema.sql
 6. Chạy lệnh: docker compose up -d (cài Docker Desktop trước)
-	PS G:\My Drive\Project\NYC Taxi Data Pipeline> docker compose up -d
+	PS D:\Project\NYC-Taxi-Data-Pipeline> docker compose up -d
 	[+] up 6/11
 	✔ Image dpage/pgadmin4                Pulled                                                                   5.1s
 	✔ Network nyctaxidatapipeline_default Created                                                                  0.1s
@@ -63,3 +63,6 @@
 	✔ Container taxi_postgres             Started                                                                  1.0s
 	✔ Container taxi_metabase             Started                                                                  1.1s
 	✔ Container taxi_pgadmin              Started                                                                  1.1s
+7. Đặt file load_staging.py vào thư mục gốc project (ngang hàng với raw_data/ và docker-compose.yml).
+8. Cài thư viện: pip install psycopg2-binary
+9. python load_staging.py

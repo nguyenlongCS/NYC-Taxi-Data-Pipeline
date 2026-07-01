@@ -3,8 +3,8 @@ NYC Taxi Data Pipeline/
 ├── docs/							# Chứa toàn bộ tài liệu của dự án
 │   ├── dataset.md       		   	# Link tải dataset từ Kaggle, mô tả dataset
 │   ├── setup.md		         	# Hướng dẫn thực hiện từng bước
-│   ├── system_architecture.md 	# Kiến trúc hệ thống, công nghệ sử dụng,...
-│   ├── project_structure.md   	# Mô tả cấu trúc thư mục và file trong dự án	
+│   ├── system_architecture.md 	    # Kiến trúc hệ thống, công nghệ sử dụng,...
+│   ├── project_structure.md   	    # Mô tả cấu trúc thư mục và file trong dự án	
 │   ├── pipeline.md
 │   ├── data_dictionary.md
 │   ├── troubleshooting.md
@@ -22,6 +22,8 @@ NYC Taxi Data Pipeline/
 │
 ├── docker-compose.yml
 ├── .gitignore
+├── requirements.txt
+├── load_staging.py
 └── main.py
 
 Lưu ý: Dự án vẫn đang trong quá trình phát triển, vì vậy cấu trúc thư mục và tài liệu có thể được cập nhật trong các phiên bản tiếp theo.
