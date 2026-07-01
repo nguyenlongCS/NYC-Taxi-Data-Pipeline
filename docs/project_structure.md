@@ -17,6 +17,10 @@ NYC Taxi Data Pipeline/
 │   ├── yellow_tripdata_2016-02.csv
 │   └── yellow_tripdata_2016-03.csv
 │
+├── sql/   
+│   └── 01_create_schema.sql
+│
+├── docker-compose.yml
 ├── .gitignore
 └── main.py
 

@@ -53,3 +53,13 @@
 	3         1  2015-01-10 20:33:39   2015-01-10 20:35:31                1           0.50        -74.009087        40.713818  ...          3.5   0.5      0.5        0.00             0                    0.3          4.80
 	4         1  2015-01-10 20:33:39   2015-01-10 20:52:58                1           3.00        -73.971176        40.762428  ...         15.0   0.5      0.5        0.00             0                    0.3         16.30
 	[5 rows x 19 columns]
+5. Tạo file: docker-compose.yml và 01_create_schema.sql
+6. Chạy lệnh: docker compose up -d (cài Docker Desktop trước)
+	PS G:\My Drive\Project\NYC Taxi Data Pipeline> docker compose up -d
+	[+] up 6/11
+	✔ Image dpage/pgadmin4                Pulled                                                                   5.1s
+	✔ Network nyctaxidatapipeline_default Created                                                                  0.1s
+	✔ Volume nyctaxidatapipeline_pgdata   Created                                                                  0.0s
+	✔ Container taxi_postgres             Started                                                                  1.0s
+	✔ Container taxi_metabase             Started                                                                  1.1s
+	✔ Container taxi_pgadmin              Started                                                                  1.1s
