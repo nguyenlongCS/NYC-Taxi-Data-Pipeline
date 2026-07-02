@@ -5,6 +5,7 @@ NYC Taxi Data Pipeline/
 │   ├── setup.md		         	# Hướng dẫn thực hiện từng bước
 │   ├── system_architecture.md 	    # Kiến trúc hệ thống, công nghệ sử dụng,...
 │   ├── project_structure.md   	    # Mô tả cấu trúc thư mục và file trong dự án	
+│   ├── notes.md   	                # Kiến thức cần nhớ
 │   ├── pipeline.md
 │   ├── data_dictionary.md
 │   ├── troubleshooting.md
@@ -18,6 +19,7 @@ NYC Taxi Data Pipeline/
 │   └── yellow_tripdata_2016-03.csv
 │
 ├── sql/   
+│   ├── 02_transform_load.sql
 │   └── 01_create_schema.sql
 │
 ├── docker-compose.yml

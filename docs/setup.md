@@ -66,3 +66,20 @@
 7. Đặt file load_staging.py vào thư mục gốc project (ngang hàng với raw_data/ và docker-compose.yml).
 8. Cài thư viện: pip install psycopg2-binary
 9. python load_staging.py
+10. Tạo sql/02_transform_load.sql
+11. chạy lệnh (không đóng cửa sổ chạy lệnh này): Get-Content sql/02_transform_load.sql | docker exec -i taxi_postgres psql -U taxi_user -d taxi_dwh     
+Kết quả cuối cùng:
+	PS D:\Project\NYC-Taxi-Data-Pipeline> Get-Content sql/02_transform_load.sql | docker exec -i taxi_postgres psql -U taxi_user -d taxi_dwh
+	TRUNCATE TABLE
+	INSERT 0 506
+	INSERT 0 1440
+	INSERT 0 21792952
+		table_name      | row_count 
+	----------------------+-----------
+	dwh.dim_date         |       506
+	dwh.dim_time         |      1440
+	dwh.fact_trips       |  21792952
+	staging.yellow_trips |  22288907
+	(4 rows)
+12. Mở cửa sổ khác để theo dõi tiến độ, chạy lệnh (có thể chạy lệnh này cách vài phút): docker exec -i taxi_postgres psql -U taxi_user -d taxi_dwh -c "SELECT pid, state, now() - query_start AS running_time, LEFT(query, 60) AS query_preview FROM pg_stat_activity WHERE state = 'active' AND query NOT ILIKE '%pg_stat_activity%';"
+
