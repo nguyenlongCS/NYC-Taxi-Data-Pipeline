@@ -1,0 +1,4 @@
+dim_date — sinh tự động theo đúng khoảng ngày thực tế có trong dữ liệu (không hardcode), tránh thiếu ngày nếu chuyến cuối tháng dropoff sang ngày/tháng kế tiếp.
+dim_time — 1440 dòng cố định (mỗi phút trong ngày), dùng chung cho cả pickup và dropoff.
+fact_trips — nạp từ staging kèm 5 điều kiện làm sạch dữ liệu phổ biến với taxi data: khoảng cách/giá tiền dương, số khách > 0, tọa độ nằm trong phạm vi hợp lý của NYC (loại các điểm GPS lỗi ghi nhận là 0,0), và dropoff phải sau pickup.
+Câu SELECT cuối cùng cho bạn thấy ngay số dòng đã lọc bỏ (so staging với fact_trips) — đây là con số hay để đưa vào README, thể hiện bạn có kiểm soát chất lượng dữ liệu.
