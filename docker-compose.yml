@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine
     container_name: taxi_postgres
     restart: unless-stopped
     environment:
@@ -24,6 +24,8 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
       - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
     depends_on:
       - postgres
 
@@ -33,8 +35,14 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
     depends_on:
       - postgres
 
 volumes:
   pgdata:
+  metabase_data:
+  pgadmin_data:

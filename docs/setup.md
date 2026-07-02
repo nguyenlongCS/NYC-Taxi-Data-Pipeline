@@ -82,4 +82,28 @@ Kết quả cuối cùng:
 	staging.yellow_trips |  22288907
 	(4 rows)
 12. Mở cửa sổ khác để theo dõi tiến độ, chạy lệnh (có thể chạy lệnh này cách vài phút): docker exec -i taxi_postgres psql -U taxi_user -d taxi_dwh -c "SELECT pid, state, now() - query_start AS running_time, LEFT(query, 60) AS query_preview FROM pg_stat_activity WHERE state = 'active' AND query NOT ILIKE '%pg_stat_activity%';"
+13. Truy cập http://localhost:3000 → làm theo wizard tạo tài khoản admin đầu tiên (email/password tùy bạn, chỉ dùng local).
+Giao diện:
+![alt text](images/image01.png)
+Sau khi tạo tài khoản thành công
+![alt text](images/image02.png)
+Thêm dữ liệu -> chọn PostgreSQL
+![alt text](images/image03.png)
+Cấu hình:
+	Database type: PostgreSQL
+	Host: postgres (dùng tên service trong docker-compose, không phải localhost, vì Metabase gọi qua network nội bộ Docker)
+	Port: 5432
+	Database name: taxi_dwh
+	Username: taxi_user / Password: taxi_pass
+![alt text](images/image04.png)
+Kết nối thành công:
+— trạng thái "Đã kết nối" (chấm xanh) xác nhận Metabase đã thấy được taxi_dwh.
+![alt text](images/image05.png)
+- Quay về trang chủ home (http://localhost:3000) chọn "Mới" góc phải > chọn "Truy vấn SQL" > chọn Taxi DWH > chạy lệnh SQL (lưu trong thư mục analytics)
+![alt text](images/image06.png)
+- Bấm nút "Trực quan hóa" (góc dưới trái, cạnh biểu tượng bánh răng) → Metabase sẽ chuyển bảng số liệu thành biểu đồ. Chọn loại biểu đồ "Cột" (Bar) hoặc "Đường" (Line). Vào "cài đặt" Chỉnh chục x:
+![alt text](images/image07.png)
+- Sau đó bấm lưu, đặt tên câu hỏi (vd: Doanh thu theo giờ trong ngày), chọn bộ sưu tập (tương tự với các câu hỏi khác)
+14. Tạo Dashboard: quay về trang chủ > chọn "Mới" > chọn "bảng điều khiển" > đặt tên bảng > thêm các câu hỏi đã lưu ở phần trước vào Dashboard > Lưu
+![alt text](images/dashboard.png)
 

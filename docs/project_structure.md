@@ -9,9 +9,12 @@ NYC Taxi Data Pipeline/
 │   ├── pipeline.md
 │   ├── data_dictionary.md
 │   ├── troubleshooting.md
-│   ├── images/
+│   ├── images/                     # Lưu hình ảnh dùng trong project
 │   └── ...
 │
+├── img_demo/                       # ảnh demo, vd: docker_logs,docker_container đang chạy,...
+|
+|
 ├── raw_data/                    	# Chứa dữ liệu gốc, không đưa lên GitHub vì dung lượng lớn
 │   ├── yellow_tripdata_2015-01.csv
 │   ├── yellow_tripdata_2016-01.csv
@@ -19,8 +22,11 @@ NYC Taxi Data Pipeline/
 │   └── yellow_tripdata_2016-03.csv
 │
 ├── sql/   
+│   ├── 01_create_schema.sql
 │   ├── 02_transform_load.sql
-│   └── 01_create_schema.sql
+│   └── analytics/                  # các câu lệnh truy vấn chạy trên metabase để tạo dashboard
+│       ├── 03_revenue_by_hour.sql   
+│       └── ...
 │
 ├── docker-compose.yml
 ├── .gitignore
