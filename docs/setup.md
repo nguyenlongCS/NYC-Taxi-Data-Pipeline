@@ -157,26 +157,3 @@ Kết nối thành công — trạng thái "Đã kết nối" (chấm xanh) xác
 - Tạo Dashboard: quay về trang chủ → **"Mới"** → **"Bảng điều khiển"** → đặt tên → thêm lần lượt cả 5 câu hỏi đã lưu vào dashboard → **Lưu**.
 
 ![alt text](images/dashboard.png)
-
-## 15. Persist dữ liệu Metabase & pgAdmin (tránh mất dashboard khi restart container)
-
-Phát hiện: `docker-compose.yml` ban đầu chỉ khai volume cho Postgres (`pgdata`), chưa khai cho Metabase và pgAdmin → dashboard/cấu hình sẽ **mất sạch** nếu container bị xóa. Sửa `docker-compose.yml`, thêm 2 named volume `metabase_data` và `pgadmin_data`, rồi áp dụng:
-
-```powershell
-docker compose down
-docker compose up -d
-```
-
-> Vì đây là volume **mới hoàn toàn**, Metabase và pgAdmin sẽ mất cấu hình cũ (câu hỏi/dashboard đã lưu, server connection) — cần tạo lại tài khoản admin và add lại server connection 1 lần. Từ sau bước này, mọi thứ sẽ được giữ nguyên qua các lần restart.
-
-## 16. Dọn volume rác (anonymous volume)
-
-Nếu thấy 1 volume có tên là chuỗi hash ngẫu nhiên (ví dụ `75d4c6db52baa8...`) trong Docker Desktop → đó là volume ẩn danh Docker tự tạo cho pgAdmin trước khi có named volume tường minh. Sau khi đã khai named volume ở Bước 15 và không còn container nào dùng volume hash đó (chấm trạng thái rỗng ◯), dọn sạch bằng:
-
-```powershell
-docker volume prune
-```
-
-## 17. Xác nhận hạ tầng ổn định
-
-Kiểm tra lại Docker Desktop → tab **Volumes**: chỉ còn đúng 3 volume đặt tên rõ ràng (`..._pgdata`, `..._metabase_data`, `..._pgadmin_data`), không còn volume hash. Dự án đã sẵn sàng để viết README tổng kết và đẩy lên GitHub.

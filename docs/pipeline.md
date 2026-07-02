@@ -73,12 +73,3 @@ Mỗi câu truy vấn được lưu thành 1 Question trong Metabase, sau đó g
 **Hiện tại:** chạy thủ công theo đúng thứ tự (`load_staging.py` → `02_transform_load.sql`), phù hợp vì dữ liệu là file tĩnh, không cần lịch chạy tự động.
 
 **Nếu mở rộng thành pipeline chạy định kỳ** (ví dụ giả lập dữ liệu mới đến hàng ngày): cần thêm **Apache Airflow** để đóng gói 2 bước trên thành 1 DAG, tự động chạy theo lịch, có retry và alerting khi lỗi.
-
-## Hướng mở rộng (chưa triển khai, ghi lại để tham khảo)
-
-| Hướng | Mô tả | Lợi ích |
-|---|---|---|
-| **Airflow** | Đóng gói pipeline thành DAG, chạy theo lịch | Tự động hóa, giám sát, retry khi lỗi |
-| **dbt** | Thay SQL transform thủ công bằng dbt models | Version control cho logic transform, testing tự động, lineage graph |
-| **dim_location qua geopandas** | Join tọa độ pickup/dropoff với ranh giới borough (NYC Open Data GeoJSON) | Phân tích được theo khu vực địa lý thay vì tọa độ thô |
-| **SCD Type 2** | Áp dụng cho 1 dimension để luyện quản lý lịch sử thay đổi | Kỹ năng thường gặp trong phỏng vấn Data Engineer |

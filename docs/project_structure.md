@@ -9,6 +9,8 @@ NYC-Taxi-Data-Pipeline/
 │   ├── data_dictionary.md           # Từ điển dữ liệu: mô tả từng bảng, từng cột trong DWH
 │   ├── notes.md                     # Kiến thức cần nhớ, bài học rút ra trong quá trình làm
 │   ├── troubleshooting.md           # Các lỗi đã gặp và cách xử lý
+│   ├── checklist.md                 # Đã thực hiện
+│   ├── roadmap.md                   # Kế hoạch mở rộng, hướng phát triển tiếp theo
 │   └── images/                      # Ảnh dùng cho dự án
 │
 ├── img_demo/                        # Ảnh demo: docker logs, container đang chạy, dashboard...
@@ -32,5 +34,6 @@ NYC-Taxi-Data-Pipeline/
 ├── docker-compose.yml               # Postgres + pgAdmin + Metabase, đều có named volume persist
 ├── .gitignore                       # Loại trừ raw_data/, .env, __pycache__/...
 ├── requirements.txt                 # psycopg2-binary, pandas...
+├── README.md                        # Tổng quan
 ├── load_staging.py                  # Script nạp CSV vào staging bằng COPY (psycopg2)
 └── main.py                          # Script khám phá dữ liệu ban đầu (đọc mẫu, đếm dòng)
