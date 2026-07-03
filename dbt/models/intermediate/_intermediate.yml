@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: int_yellow_trips_keyed
+    description: >
+      Intermediate model — nhận đầu vào từ stg_yellow_trips, thêm 4 cột
+      surrogate key thời gian (pickup_date_id, pickup_time_id,
+      dropoff_date_id, dropoff_time_id) và trip_duration_min (phút).
+      Công thức tính giống hệt sql/02_transform_load.sql gốc để đảm bảo
+      khớp với dwh.dim_date/dwh.dim_time.
+
+      Vẫn CHƯA lọc dữ liệu bẩn (giống staging) — vẫn còn dòng có GPS lỗi,
+      giá âm, quãng đường bất thường... 5 điều kiện lọc sẽ áp dụng ở
+      marts.fact_trips (bước 4), test data quality thêm ở bước 5.
+    columns:
+      - name: pickup_date_id
+        description: Surrogate key ngày đón khách, định dạng YYYYMMDD
+      - name: pickup_time_id
+        description: Surrogate key phút trong ngày lúc đón khách (0-1439)
+      - name: dropoff_date_id
+        description: Surrogate key ngày trả khách, định dạng YYYYMMDD
+      - name: dropoff_time_id
+        description: Surrogate key phút trong ngày lúc trả khách (0-1439)
+      - name: trip_duration_min
+        description: Thời lượng chuyến đi (phút), tính từ dropoff - pickup
