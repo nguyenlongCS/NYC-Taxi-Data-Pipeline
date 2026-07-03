@@ -1,0 +1,54 @@
+version: 2
+
+sources:
+  - name: staging
+    schema: staging
+    description: >
+      Dữ liệu thô nạp từ CSV Kaggle (yellow_tripdata_2016-01, 2016-02) bằng
+      load_staging.py (psycopg2 COPY streaming, xem docs/pipeline.md). Bảng
+      này KHÔNG do dbt quản lý (không phải model) — dbt chỉ đọc từ đây làm
+      điểm bắt đầu cho transform. Không có PK/FK, không lọc dữ liệu bẩn.
+    tables:
+      - name: yellow_trips
+        description: >
+          Bảng thô, khớp 1-1 với 19 cột CSV gốc TLC Yellow Taxi 2016-01/02
+          (22,288,907 dòng). Xem mô tả đầy đủ tại docs/data_dictionary.md.
+        columns:
+          - name: vendor_id
+            description: Mã nhà cung cấp thiết bị taxi (1 hoặc 2)
+          - name: tpep_pickup_datetime
+            description: Thời điểm đón khách
+          - name: tpep_dropoff_datetime
+            description: Thời điểm trả khách
+          - name: passenger_count
+            description: Số hành khách
+          - name: trip_distance
+            description: Quãng đường (dặm)
+          - name: pickup_longitude
+            description: Kinh độ điểm đón
+          - name: pickup_latitude
+            description: Vĩ độ điểm đón
+          - name: rate_code_id
+            description: Mã biểu giá áp dụng
+          - name: store_and_fwd_flag
+            description: Cờ lưu tạm do mất kết nối trước khi gửi (Y/N)
+          - name: dropoff_longitude
+            description: Kinh độ điểm trả
+          - name: dropoff_latitude
+            description: Vĩ độ điểm trả
+          - name: payment_type
+            description: Mã hình thức thanh toán
+          - name: fare_amount
+            description: Giá cước cơ bản
+          - name: extra
+            description: Phụ phí
+          - name: mta_tax
+            description: Thuế MTA
+          - name: tip_amount
+            description: Tiền tip
+          - name: tolls_amount
+            description: Phí cầu đường
+          - name: improvement_surcharge
+            description: Phụ phí cải thiện dịch vụ
+          - name: total_amount
+            description: Tổng tiền

@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: stg_yellow_trips
+    description: >
+      Staging model đầu tiên — đọc từ source staging.yellow_trips, chỉ
+      rename cột `payment_type` -> `payment_type_id` cho khớp quy ước
+      đặt tên của dwh.dim_payment_type. KHÔNG lọc dữ liệu bẩn (dữ liệu
+      thô, kể cả dòng có GPS lỗi/giá âm/quãng đường bất thường, vẫn giữ
+      nguyên ở đây).
+
+      Chưa khai test ở layer này: dữ liệu nguồn có thể chứa giá trị nằm
+      ngoài phạm vi hợp lệ (đó chính là lý do 02_transform_load.sql gốc
+      phải lọc ~2.2% dòng khi nạp fact_trips — xem docs/notes.md mục 1).
+      Test not_null/accepted_range sẽ được thêm ở layer marts (bước 5
+      trong roadmap), áp dụng SAU khi dữ liệu đã qua điều kiện lọc,
+      để test phản ánh đúng kỳ vọng chất lượng dữ liệu ở fact_trips
+      chứ không làm fail test vì bản chất dữ liệu thô vốn có lỗi.
+    columns:
+      - name: vendor_id
+        description: Mã nhà cung cấp thiết bị taxi
+      - name: tpep_pickup_datetime
+        description: Thời điểm đón khách
+      - name: tpep_dropoff_datetime
+        description: Thời điểm trả khách
+      - name: passenger_count
+        description: Số hành khách
+      - name: trip_distance
+        description: Quãng đường (dặm)
+      - name: pickup_longitude
+        description: Kinh độ điểm đón
+      - name: pickup_latitude
+        description: Vĩ độ điểm đón
+      - name: rate_code_id
+        description: Mã biểu giá áp dụng
+      - name: store_and_fwd_flag
+        description: Cờ lưu tạm do mất kết nối trước khi gửi (Y/N)
+      - name: dropoff_longitude
+        description: Kinh độ điểm trả
+      - name: dropoff_latitude
+        description: Vĩ độ điểm trả
+      - name: payment_type_id
+        description: Mã hình thức thanh toán (đổi tên từ payment_type gốc)
+      - name: fare_amount
+        description: Giá cước cơ bản
+      - name: extra
+        description: Phụ phí
+      - name: mta_tax
+        description: Thuế MTA
+      - name: tip_amount
+        description: Tiền tip
+      - name: tolls_amount
+        description: Phí cầu đường
+      - name: improvement_surcharge
+        description: Phụ phí cải thiện dịch vụ
+      - name: total_amount
+        description: Tổng tiền
