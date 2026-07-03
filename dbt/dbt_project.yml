@@ -1,0 +1,47 @@
+name: 'taxi_dwh'
+version: '1.0.0'
+config-version: 2
+
+# Phải khớp với tên profile khai báo trong profiles.yml
+profile: 'taxi_dwh'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# ------------------------------------------------------------
+# Ba layer model theo đúng kế hoạch trong docs/roadmap.md:
+#   staging      → đọc thô từ nguồn (schema.yml sẽ khai báo
+#                  source staging.yellow_trips ở bước sau)
+#   intermediate → tính surrogate key theo thời gian
+#   marts        → dim_date, dim_time, dim_vendor,
+#                  dim_payment_type, dim_rate_code, fact_trips
+#
+# +schema ở đây được dùng NGUYÊN VĂN (không bị dbt prepend thêm
+# schema đích mặc định) nhờ macro generate_schema_name tùy biến
+# trong macros/get_custom_schema.sql. Nhờ vậy:
+#   - marts đổ thẳng vào schema `dwh` đã có sẵn → Metabase không
+#     cần cấu hình lại kết nối.
+#   - staging/intermediate của dbt nằm ở schema riêng
+#     (`staging_dbt`, `intermediate`) để KHÔNG đụng vào schema
+#     `staging` (chứa staging.yellow_trips do load_staging.py nạp).
+# ------------------------------------------------------------
+models:
+  taxi_dwh:
+    staging:
+      +materialized: view
+      +schema: staging_dbt
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: dwh

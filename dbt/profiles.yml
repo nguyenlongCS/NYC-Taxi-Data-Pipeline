@@ -1,0 +1,32 @@
+# profiles.yml
+#
+# Đặt file này ở nơi dbt tìm profile khi chạy lệnh:
+#   - cách 1 (khuyên dùng cho project này): chạy dbt với cờ
+#       --profiles-dir dbt
+#     (từ thư mục gốc repo), hoặc set biến môi trường
+#       DBT_PROFILES_DIR=./dbt
+#   - cách 2: copy file này vào ~/.dbt/profiles.yml (mặc định dbt tìm ở đó)
+#
+# Toàn bộ giá trị kết nối lấy từ biến môi trường qua env_var(), giá trị
+# mặc định (tham số thứ 2) khớp với docker-compose.yml gốc — nghĩa là
+# nếu không set gì cả, dbt vẫn kết nối được tới container Postgres đang
+# chạy local (port 5432 đã map ra host).
+#
+# Lưu ý: dbt chạy TRÊN MÁY HOST (giống load_staging.py), không chạy
+# trong Docker network nội bộ — nên host là "localhost", KHÁC với
+# Metabase (dùng tên service "postgres" vì Metabase chạy trong container).
+
+taxi_dwh:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DBT_HOST', 'localhost') }}"
+      port: "{{ env_var('DBT_PORT', '5432') | int }}"
+      user: "{{ env_var('DBT_USER', 'taxi_user') }}"
+      password: "{{ env_var('DBT_PASSWORD', 'taxi_pass') }}"
+      dbname: "{{ env_var('DBT_DBNAME', 'taxi_dwh') }}"
+      schema: dwh          # schema mặc định/fallback — các model đều tự khai +schema riêng
+      threads: 4
+      keepalives_idle: 0
+      connect_timeout: 10
