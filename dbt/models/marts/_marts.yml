@@ -8,8 +8,13 @@ models:
     columns:
       - name: date_id
         description: Khóa chính, định dạng YYYYMMDD
+        tests:
+          - unique
+          - not_null
       - name: full_date
         description: Ngày đầy đủ
+        tests:
+          - not_null
       - name: day_of_week
         description: 1 = Thứ Hai ... 7 = Chủ Nhật (chuẩn ISO)
       - name: is_weekend
@@ -22,6 +27,9 @@ models:
     columns:
       - name: time_id
         description: Khóa chính, số phút tính từ 00:00 (0-1439)
+        tests:
+          - unique
+          - not_null
       - name: time_period
         description: >
           Khung giờ (Sáng sớm/Sáng/Trưa/Chiều/Tối/Đêm khuya)
@@ -35,23 +43,71 @@ models:
       pickup_date_id. Kỳ vọng ~21,792,952 dòng ở lần build đầy đủ đầu
       tiên (khớp docs/data_dictionary.md).
 
-      Test data quality (not_null, accepted_range cho 5 điều kiện lọc,
-      relationships tới dim_rate_code/dim_payment_type...) sẽ được thêm
-      ở bước tiếp theo (chuyển 5 điều kiện lọc thành dbt tests chính thức).
+      QUAN TRỌNG: bảng dwh.fact_trips gốc có REFERENCES (FK) cứng tới
+      dim_date/dim_time/dim_vendor/dim_payment_type/dim_rate_code — dbt
+      KHÔNG tự tạo constraint này khi materialize table. Test
+      `relationships` bên dưới thay thế vai trò đó (chạy bằng `dbt test`,
+      kiểm tra logic thay vì ràng buộc ở tầng DB). 5 điều kiện lọc dữ
+      liệu bẩn gốc (trip_distance, fare_amount, passenger_count, tọa độ,
+      dropoff > pickup) không diễn đạt được bằng generic test có sẵn của
+      dbt-core (cần khoảng giá trị/bounding box) — xem 5 singular test
+      tương ứng trong thư mục tests/.
     columns:
       - name: pickup_date_id
         description: FK tới dim_date — ngày đón khách
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_id
       - name: pickup_time_id
         description: FK tới dim_time — phút trong ngày lúc đón khách
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: time_id
       - name: dropoff_date_id
         description: FK tới dim_date — ngày trả khách
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_id
       - name: dropoff_time_id
         description: FK tới dim_time — phút trong ngày lúc trả khách
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: time_id
       - name: vendor_id
         description: FK tới dim_vendor
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_vendor')
+                field: vendor_id
       - name: payment_type_id
         description: FK tới dim_payment_type
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_payment_type')
+                field: payment_type_id
       - name: rate_code_id
         description: FK tới dim_rate_code
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_rate_code')
+                field: rate_code_id
       - name: trip_duration_min
         description: Thời lượng chuyến đi (phút)

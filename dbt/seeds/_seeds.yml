@@ -1,0 +1,32 @@
+version: 2
+
+seeds:
+  - name: dim_vendor
+    description: >
+      Mã nhà cung cấp thiết bị taxi (thay 2 câu INSERT tĩnh trong
+      sql/01_create_schema.sql).
+    columns:
+      - name: vendor_id
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_payment_type
+    description: >
+      Hình thức thanh toán (thay 6 câu INSERT tĩnh trong
+      sql/01_create_schema.sql).
+    columns:
+      - name: payment_type_id
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_rate_code
+    description: >
+      Biểu giá áp dụng (thay 6 câu INSERT tĩnh trong
+      sql/01_create_schema.sql).
+    columns:
+      - name: rate_code_id
+        tests:
+          - unique
+          - not_null
