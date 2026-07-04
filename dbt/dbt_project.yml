@@ -45,3 +45,25 @@ models:
     marts:
       +materialized: table
       +schema: dwh
+
+# ------------------------------------------------------------
+# Seeds — thay thế 3 câu INSERT tĩnh (dim_vendor, dim_payment_type,
+# dim_rate_code) trong sql/01_create_schema.sql. Cùng +schema: dwh
+# và cùng cơ chế generate_schema_name như models, nên cũng đổ đúng
+# vào schema `dwh` có sẵn (không bị ghép thành "dwh_dwh").
+# ------------------------------------------------------------
+seeds:
+  taxi_dwh:
+    +schema: dwh
+    dim_vendor:
+      +column_types:
+        vendor_id: integer
+        vendor_name: varchar(100)
+    dim_payment_type:
+      +column_types:
+        payment_type_id: integer
+        payment_name: varchar(50)
+    dim_rate_code:
+      +column_types:
+        rate_code_id: integer
+        rate_name: varchar(50)
