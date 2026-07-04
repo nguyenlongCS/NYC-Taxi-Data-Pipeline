@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: >
+      Dimension ngày — mỗi dòng là 1 ngày, sinh tự động theo khoảng ngày
+      thực tế xuất hiện trong dữ liệu (kỳ vọng 506 dòng, xem docs/notes.md).
+    columns:
+      - name: date_id
+        description: Khóa chính, định dạng YYYYMMDD
+      - name: full_date
+        description: Ngày đầy đủ
+      - name: day_of_week
+        description: 1 = Thứ Hai ... 7 = Chủ Nhật (chuẩn ISO)
+      - name: is_weekend
+        description: true nếu là Thứ Bảy/Chủ Nhật
+
+  - name: dim_time
+    description: >
+      Dimension phút trong ngày — 1440 dòng cố định (0-1439), dùng chung
+      cho cả pickup và dropoff (role-playing dimension).
+    columns:
+      - name: time_id
+        description: Khóa chính, số phút tính từ 00:00 (0-1439)
+      - name: time_period
+        description: >
+          Khung giờ (Sáng sớm/Sáng/Trưa/Chiều/Tối/Đêm khuya)
+      - name: is_rush_hour
+        description: true nếu giờ thuộc khung 7-9h hoặc 16-19h
+
+  - name: fact_trips
+    description: >
+      Fact table — 1 dòng = 1 chuyến taxi đã qua 5 điều kiện lọc dữ liệu
+      bẩn (xem comment trong fact_trips.sql). Incremental model theo
+      pickup_date_id. Kỳ vọng ~21,792,952 dòng ở lần build đầy đủ đầu
+      tiên (khớp docs/data_dictionary.md).
+
+      Test data quality (not_null, accepted_range cho 5 điều kiện lọc,
+      relationships tới dim_rate_code/dim_payment_type...) sẽ được thêm
+      ở bước tiếp theo (chuyển 5 điều kiện lọc thành dbt tests chính thức).
+    columns:
+      - name: pickup_date_id
+        description: FK tới dim_date — ngày đón khách
+      - name: pickup_time_id
+        description: FK tới dim_time — phút trong ngày lúc đón khách
+      - name: dropoff_date_id
+        description: FK tới dim_date — ngày trả khách
+      - name: dropoff_time_id
+        description: FK tới dim_time — phút trong ngày lúc trả khách
+      - name: vendor_id
+        description: FK tới dim_vendor
+      - name: payment_type_id
+        description: FK tới dim_payment_type
+      - name: rate_code_id
+        description: FK tới dim_rate_code
+      - name: trip_duration_min
+        description: Thời lượng chuyến đi (phút)
