@@ -22,8 +22,13 @@ NYC-Taxi-Data-Pipeline/
 │   └── yellow_tripdata_2016-03.csv  # Dự phòng, chưa nạp
 │
 ├── sql/
-│   ├── 01_create_schema.sql         # DDL: tạo schema staging + dwh, toàn bộ bảng dim/fact
-│   ├── 02_transform_load.sql        # Sinh dim_date/dim_time, transform + nạp fact_trips
+│   ├── 01_create_schema.sql         # DDL rút gọn: chỉ còn tạo schema + staging.yellow_trips
+│   │                                # (DDL dwh.* đã chuyển hết sang dbt/ — xem ghi chú trong file)
+│   ├── archive/
+│   │   └── 02_transform_load.sql    # 📦 Đã nghỉ hưu — thay bằng dbt/ (staging→intermediate→marts).
+│   │                                # Giữ lại để tham khảo/đối chiếu lịch sử, KHÔNG đặt ở sql/ gốc
+│   │                                # vì Docker initdb sẽ tự chạy lại (đã kiểm chứng số liệu khớp
+│   │                                # 100% với dbt trước khi archive — xem docs/troubleshooting.md)
 │   └── analytics/                   # Các câu truy vấn dùng để tạo dashboard trên Metabase
 │       ├── 03_revenue_by_hour.sql
 │       ├── 04_trend_by_weekday.sql
@@ -31,9 +36,50 @@ NYC-Taxi-Data-Pipeline/
 │       ├── 06_tip_by_vendor.sql
 │       └── 07_rush_hour_impact.sql
 │
+├── dbt/                             # ✅ Thay thế sql/archive/02_transform_load.sql hoàn toàn
+│   │                                # (xem docs/roadmap.md, mục "1. dbt")
+│   ├── dbt_project.yml              # Cấu hình project — khai schema đích từng layer
+│   │                                # (staging_dbt / intermediate / dwh) + seeds
+│   ├── profiles.yml                 # Kết nối Postgres qua env_var (default khớp docker-compose.yml)
+│   ├── README.md                    # Setup venv Python 3.12 riêng, lệnh chạy dbt,
+│   │                                # các lỗi Windows đã gặp (xem docs/troubleshooting.md)
+│   ├── macros/
+│   │   └── get_custom_schema.sql    # Override để model/seed đổ đúng vào schema khai báo
+│   │                                # (marts đổ thẳng vào `dwh`, không bị ghép tiền tố)
+│   ├── models/
+│   │   ├── staging/                 # Đọc thô từ source staging.yellow_trips, chỉ rename cột
+│   │   │   ├── _sources.yml
+│   │   │   ├── _staging.yml
+│   │   │   └── stg_yellow_trips.sql
+│   │   ├── intermediate/            # Tính surrogate key thời gian + trip_duration_min
+│   │   │   ├── _intermediate.yml
+│   │   │   └── int_yellow_trips_keyed.sql
+│   │   └── marts/                   # dim_date, dim_time, fact_trips (schema `dwh`)
+│   │       ├── _marts.yml           # Mô tả + test (not_null, unique, relationships)
+│   │       ├── dim_date.sql
+│   │       ├── dim_time.sql
+│   │       └── fact_trips.sql       # Incremental model, áp 5 điều kiện lọc dữ liệu bẩn
+│   ├── seeds/                       # Thay 3 câu INSERT tĩnh cũ trong 01_create_schema.sql
+│   │   ├── _seeds.yml               # Test unique/not_null cho khóa chính từng seed
+│   │   ├── dim_vendor.csv
+│   │   ├── dim_payment_type.csv
+│   │   └── dim_rate_code.csv
+│   ├── tests/                       # 5 singular test — mỗi file ứng 1 điều kiện lọc gốc
+│   │   ├── assert_trip_distance_in_range.sql
+│   │   ├── assert_fare_amount_positive.sql
+│   │   ├── assert_passenger_count_positive.sql
+│   │   ├── assert_pickup_dropoff_coords_in_nyc_bbox.sql
+│   │   └── assert_trip_duration_positive.sql
+│   ├── snapshots/                   # Không dùng trong phạm vi dự án này (khung chuẩn dbt)
+│   └── analyses/                    # Không dùng trong phạm vi dự án này (khung chuẩn dbt)
+│
+├── .venv-dbt/                       # ⚠️ Không commit (đã .gitignore) — venv Python 3.12 riêng
+│                                    # cho dbt, tách khỏi Python hệ thống (xem dbt/README.md)
+│
 ├── docker-compose.yml               # Postgres + pgAdmin + Metabase, đều có named volume persist
-├── .gitignore                       # Loại trừ raw_data/, .env, __pycache__/...
-├── requirements.txt                 # psycopg2-binary, pandas...
+├── .gitignore                       # Loại trừ raw_data/, .env, __pycache__/, dbt/target/, .venv-dbt/...
+├── .env.example                     # Mẫu biến môi trường cho dbt (có default khớp docker-compose.yml)
+├── requirements.txt                 # psycopg2-binary, pandas, dbt-postgres...
 ├── README.md                        # Tổng quan
 ├── load_staging.py                  # Script nạp CSV vào staging bằng COPY (psycopg2)
 └── main.py                          # Script khám phá dữ liệu ban đầu (đọc mẫu, đếm dòng)

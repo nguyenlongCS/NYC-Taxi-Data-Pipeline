@@ -47,6 +47,11 @@ PS D:\Project\NYC-Taxi-Data-Pipeline> python main.py
 ## 5. Tạo file `docker-compose.yml` và `sql/01_create_schema.sql`
 Xem nội dung đầy đủ trong repo — 3 service: `postgres`, `pgadmin`, `metabase`, mỗi service có named volume riêng để persist dữ liệu qua các lần restart.
 
+`sql/01_create_schema.sql` (chạy tự động khi container Postgres khởi tạo lần đầu qua
+`docker-entrypoint-initdb.d`) hiện chỉ tạo schema `staging`/`dwh` rỗng + bảng
+`staging.yellow_trips` — toàn bộ bảng `dim_*`/`fact_trips` bên trong `dwh` **không còn
+được tạo ở đây nữa**, mà do dbt tự tạo khi chạy `dbt build` (xem mục 10-11 bên dưới).
+
 ## 6. Khởi động Docker (cài Docker Desktop trước)
 ```powershell
 docker compose up -d
@@ -83,31 +88,62 @@ python load_staging.py
 Tổng số dòng trong staging.yellow_trips: 22,288,907
 ```
 
-## 10. Tạo `sql/02_transform_load.sql`
-Sinh `dim_date`, `dim_time`, transform và nạp `fact_trips` kèm làm sạch dữ liệu (5 điều kiện lọc — xem `notes.md`).
+## 10. Setup dbt (thay cho việc viết `02_transform_load.sql` thủ công)
 
-⚠️ **Lưu ý quan trọng:** script này TRUNCATE cả 3 bảng `fact_trips`, `dim_date`, `dim_time` trong **cùng 1 câu lệnh** để tránh lỗi FK constraint. Xem giải thích chi tiết tại `troubleshooting.md`.
+⚠️ **Lưu ý quan trọng:** dbt-core (qua thư viện `mashumaro`) chưa hỗ trợ Python 3.14 tại
+thời điểm viết tài liệu này. Nếu Python hệ thống là 3.14, **bắt buộc** tạo venv riêng
+bằng Python 3.12 cho dbt — không ảnh hưởng gì tới Python hệ thống dùng cho
+`load_staging.py`. Chi tiết đầy đủ + toàn bộ lỗi Windows đã gặp: [`dbt/README.md`](../dbt/README.md).
 
-## 11. Chạy script transform (chỉ 1 terminal, không chạy song song lệnh ghi khác)
 ```powershell
-Get-Content sql/02_transform_load.sql | docker exec -i taxi_postgres psql -U taxi_user -d taxi_dwh
-```
-> PowerShell không hỗ trợ redirect `<` — bắt buộc dùng `Get-Content | pipe` như trên.
+# Tạo venv riêng cho dbt (chỉ 1 lần)
+py -3.12 -m venv .venv-dbt
 
-Kết quả cuối cùng:
+# PowerShell chặn script .ps1 mặc định — nới lỏng cho phiên hiện tại
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.venv-dbt\Scripts\Activate.ps1
+
+# Cài thư viện (đã gồm dbt-postgres trong requirements.txt)
+pip install -r requirements.txt
 ```
-PS D:\Project\NYC-Taxi-Data-Pipeline> Get-Content sql/02_transform_load.sql | docker exec -i taxi_postgres psql -U taxi_user -d taxi_dwh
-TRUNCATE TABLE
-INSERT 0 506
-INSERT 0 1440
-INSERT 0 21792952
-      table_name      | row_count 
-----------------------+-----------
- dwh.dim_date         |       506
- dwh.dim_time         |      1440
- dwh.fact_trips       |  21792952
- staging.yellow_trips |  22288907
-(4 rows)
+
+Kiểm tra kết nối:
+```powershell
+$env:PYTHONUTF8 = "1"   # tránh UnicodeDecodeError do comment tiếng Việt trong file dbt
+dbt debug --project-dir dbt --profiles-dir dbt
+```
+Kỳ vọng: `All checks passed!`
+
+## 11. Chạy `dbt build` — transform + nạp star schema + chạy test
+
+```powershell
+.venv-dbt\Scripts\Activate.ps1   # nếu chưa activate
+$env:PYTHONUTF8 = "1"
+
+dbt build --project-dir dbt --profiles-dir dbt
+```
+
+`dbt build` chạy theo đúng thứ tự phụ thuộc: **seed** (`dim_vendor`, `dim_payment_type`,
+`dim_rate_code`) → **staging** (`stg_yellow_trips`) → **intermediate**
+(`int_yellow_trips_keyed`) → **marts** (`dim_date`, `dim_time`, `fact_trips` — incremental,
+áp 5 điều kiện lọc dữ liệu bẩn) → **test** (not_null, unique, relationships, và 5 test
+tái hiện đúng 5 điều kiện lọc — xem `docs/notes.md` mục 1).
+
+Kết quả cuối cùng kỳ vọng:
+```
+Done. PASS=38 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=38
+```
+Đối chiếu nhanh số liệu (khớp đúng bản gốc — xem `docs/data_dictionary.md`):
+```sql
+SELECT 'dim_date', COUNT(*) FROM dwh.dim_date        -- kỳ vọng 506
+UNION ALL SELECT 'dim_time', COUNT(*) FROM dwh.dim_time      -- kỳ vọng 1440
+UNION ALL SELECT 'fact_trips', COUNT(*) FROM dwh.fact_trips; -- kỳ vọng 21,792,952
+```
+
+(Tuỳ chọn) Sinh lineage graph trực quan cho portfolio:
+```powershell
+dbt docs generate --project-dir dbt --profiles-dir dbt
+dbt docs serve --project-dir dbt --profiles-dir dbt
 ```
 
 ## 12. (Tùy chọn) Theo dõi tiến độ từ cửa sổ terminal khác

@@ -135,6 +135,82 @@ volumes:
 
 ---
 
+## 8. Lỗi: dbt crash với `mashumaro.exceptions.UnserializableField` trên Python 3.14
+
+**Log lỗi:**
+```
+mashumaro.exceptions.UnserializableField: Field "schema" of type Optional[str]
+in JSONObjectSchema is not serializable
+```
+
+**Nguyên nhân:** dbt-core (qua thư viện phụ thuộc `mashumaro`) chưa hỗ trợ Python 3.14 tại thời điểm triển khai (dbt chính thức hỗ trợ tới Python 3.13). Máy dùng Python 3.14 làm mặc định nên `dbt debug`/`dbt run` crash ngay từ bước import.
+
+**Cách xử lý:** tạo virtual environment riêng cho dbt bằng Python 3.12, tách biệt hoàn toàn với Python hệ thống dùng cho `load_staging.py`:
+```powershell
+py -3.12 -m venv .venv-dbt
+```
+Chi tiết đầy đủ tại [`dbt/README.md`](../dbt/README.md).
+
+---
+
+## 9. Lỗi: PowerShell chặn `Activate.ps1` (`UnauthorizedAccess`/`PSSecurityException`)
+
+**Log lỗi:**
+```
+File ...\.venv-dbt\Scripts\Activate.ps1 cannot be loaded because running scripts
+is disabled on this system.
+```
+
+**Nguyên nhân:** Windows PowerShell mặc định chặn chạy file `.ps1` (Execution Policy `Restricted`) — không liên quan tới dbt hay venv, ai mới dùng PowerShell + Python venv cũng gặp.
+
+**Cách xử lý:** nới lỏng chỉ cho phiên terminal hiện tại (an toàn, tự reset khi đóng terminal):
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.venv-dbt\Scripts\Activate.ps1
+```
+Hoặc đổi policy mức user (chỉ 1 lần, không cần admin):
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+---
+
+## 10. Lỗi: `UnicodeDecodeError: 'charmap' codec can't decode byte...` khi chạy dbt
+
+**Log lỗi:**
+```
+UnicodeDecodeError: 'charmap' codec can't decode byte 0x8d in position 534:
+character maps to <undefined>
+```
+
+**Nguyên nhân:** Python trên Windows mặc định đọc file bằng codepage hệ thống (`cp1252`) thay vì UTF-8. Các file `.sql`/`.yml` trong `dbt/` có comment tiếng Việt có dấu → dbt crash khi quét project.
+
+**Cách xử lý:** set biến môi trường UTF-8 mode trước khi chạy bất kỳ lệnh `dbt` nào (mỗi phiên terminal mới phải set lại):
+```powershell
+$env:PYTHONUTF8 = "1"
+```
+
+---
+
+## 11. Lỗi: `dbt seed` báo lại đúng lỗi TRUNCATE-FK (giống mục #1) khi build lần đầu
+
+**Log lỗi:**
+```
+Database Error in seed dim_payment_type (seeds\dim_payment_type.csv)
+  cannot truncate a table referenced in a foreign key constraint
+  DETAIL:  Table "fact_trips" references "dim_payment_type".
+```
+
+**Nguyên nhân:** `dbt seed` mặc định dùng chiến lược `TRUNCATE` rồi `INSERT` lại. Bảng `dwh.fact_trips` **CŨ** (do `sql/01_create_schema.sql`/`sql/02_transform_load.sql` gốc tạo, có `REFERENCES` cứng tới `dim_vendor`/`dim_payment_type`/`dim_rate_code`) vẫn còn tồn tại trong DB tại thời điểm chuyển sang dbt-managed schema — seed trùng tên bảng với 3 dimension đó nên bị chặn TRUNCATE, đúng cơ chế ở mục #1.
+
+**Cách xử lý:** đây là bước "bàn giao" 1 lần duy nhất khi chuyển từ pipeline SQL thủ công sang dbt — xóa bảng `fact_trips` cũ để gỡ luôn 3 FK đang chặn (đã đối chiếu số liệu khớp 100% trước khi xóa, xem `docs/checklist.md`):
+```powershell
+docker exec -it taxi_postgres psql -U taxi_user -d taxi_dwh -c "DROP TABLE dwh.fact_trips;"
+```
+Sau đó `dbt build` lại — không cần lặp lại bước này về sau vì `dim_date`/`dim_time`/`fact_trips` từ giờ hoàn toàn do dbt quản lý (materialize bằng create-and-replace, không TRUNCATE).
+
+---
+
 ## Bảng tổng hợp nhanh
 
 | # | Lỗi/Vấn đề | Nguyên nhân gốc | Fix chính |
@@ -146,3 +222,7 @@ volumes:
 | 5 | Mất dashboard Metabase khi restart container | Thiếu named volume trong docker-compose.yml | Thêm `volumes:` tường minh cho từng service |
 | 6 | Volume tên hash lạ | Docker tự tạo anonymous volume khi image có VOLUME nội bộ chưa được map tên | Thêm named volume, prune volume cũ |
 | 7 | Chart rối nhiều trục Y | Metabase tự vẽ hết các cột SQL trả về lên 1 chart | Chỉ giữ 1 metric chính mỗi chart trong phần Cài đặt |
+| 8 | dbt crash `UnserializableField` | Python 3.14 chưa được dbt-core/mashumaro hỗ trợ | venv riêng với Python 3.12 |
+| 9 | PowerShell chặn `Activate.ps1` | Execution Policy mặc định `Restricted` | `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` |
+| 10 | `UnicodeDecodeError` khi chạy dbt | Windows đọc file bằng `cp1252` thay vì UTF-8 | `$env:PYTHONUTF8 = "1"` trước khi chạy dbt |
+| 11 | `dbt seed` bị lỗi TRUNCATE-FK | Bảng `fact_trips` cũ (có FK cứng) chưa được dọn khi chuyển sang dbt | `DROP TABLE dwh.fact_trips` (chỉ 1 lần khi bàn giao) |

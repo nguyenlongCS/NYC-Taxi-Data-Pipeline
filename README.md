@@ -10,11 +10,7 @@ Dự án cá nhân xây dựng pipeline dữ liệu **end-to-end** (Extract → 
 
 ## Kiến trúc
 
-```
-CSV (Kaggle) → staging (PostgreSQL) → star schema (dim/fact) → Metabase Dashboard
-                     ▲
-              Python (COPY streaming)        SQL (transform + data quality)
-```
+![alt text](img_demo/system_architecture.png)
 
 Toàn bộ hạ tầng đóng gói bằng **Docker Compose**: PostgreSQL (data warehouse) + pgAdmin (quản trị DB) + Metabase (BI dashboard), mỗi service có volume riêng để dữ liệu/dashboard không mất khi restart.
 
@@ -24,7 +20,7 @@ Toàn bộ hạ tầng đóng gói bằng **Docker Compose**: PostgreSQL (data w
 |---|---|
 | Nguồn dữ liệu | NYC Yellow Taxi Trip Data (Kaggle, gốc từ TLC), 2015-2016 |
 | Data Warehouse | PostgreSQL 16 |
-| ETL | Python (`psycopg2` — COPY streaming) + SQL thuần |
+| ETL | Python (`psycopg2` — COPY streaming) + **dbt** (staging → intermediate → marts) |
 | BI / Dashboard | Metabase |
 | Quản trị DB | pgAdmin |
 | Hạ tầng | Docker Compose |
@@ -42,13 +38,17 @@ pip install -r requirements.txt
 # 4. Nạp dữ liệu thô vào staging
 python load_staging.py
 
-# 5. Transform + nạp star schema
-Get-Content sql/02_transform_load.sql | docker exec -i taxi_postgres psql -U taxi_user -d taxi_dwh
-# (Linux/macOS: docker exec -i taxi_postgres psql -U taxi_user -d taxi_dwh < sql/02_transform_load.sql)
+# 5. Transform + nạp star schema bằng dbt (cần Python 3.12 — xem dbt/README.md
+#    nếu Python hệ thống là 3.14, dbt chưa hỗ trợ)
+py -3.12 -m venv .venv-dbt
+.venv-dbt\Scripts\Activate.ps1        # (Linux/macOS: source .venv-dbt/bin/activate)
+pip install -r requirements.txt
+dbt build --project-dir dbt --profiles-dir dbt
 
 # 6. Mở Metabase, kết nối tới taxi_dwh, import các câu truy vấn trong sql/analytics/
 ```
 → Hướng dẫn chi tiết từng bước kèm ảnh chụp màn hình: [`docs/setup.md`](docs/setup.md)
+→ Hướng dẫn riêng cho dbt (setup venv, lệnh chạy, lỗi thường gặp trên Windows): [`dbt/README.md`](dbt/README.md)
 
 ## Cấu trúc project
 
@@ -57,9 +57,10 @@ NYC-Taxi-Data-Pipeline/
 ├── docs/                  # Toàn bộ tài liệu (xem bảng bên dưới)
 ├── raw_data/              # Dữ liệu gốc (không đưa lên GitHub)
 ├── sql/
-│   ├── 01_create_schema.sql
-│   ├── 02_transform_load.sql
+│   ├── 01_create_schema.sql   # Chỉ còn tạo schema + staging.yellow_trips
+│   ├── archive/                # 02_transform_load.sql cũ — đã thay bằng dbt/
 │   └── analytics/         # 5 câu truy vấn dựng dashboard
+├── dbt/                   # staging → intermediate → marts (thay 02_transform_load.sql)
 ├── docker-compose.yml
 ├── load_staging.py
 └── requirements.txt
@@ -83,17 +84,17 @@ NYC-Taxi-Data-Pipeline/
 - **Data quality có kiểm soát**: 5 điều kiện lọc dữ liệu bẩn rõ ràng, có số liệu đối chiếu trước/sau (xem `docs/data_dictionary.md`).
 - **Star schema chuẩn** với kỹ thuật *role-playing dimension* (`dim_date`/`dim_time` được dùng lại cho cả pickup và dropoff).
 - **Hạ tầng persist đúng cách**: named volume cho cả 3 service, tránh mất dữ liệu/dashboard khi container restart.
-- **Idempotent script**: `02_transform_load.sql` chạy lại bao nhiêu lần cũng an toàn, không lỗi trùng khóa.
+- **Transform bằng dbt**: `staging → intermediate → marts`, `fact_trips` là **incremental model**, 38 test (not_null, unique, relationships, và 5 custom test tái hiện đúng 5 điều kiện lọc dữ liệu bẩn) — xem [`dbt/README.md`](dbt/README.md).
 
 ## Hướng phát triển tiếp theo
  
-Nâng pipeline chạy tay hiện tại thành nền tảng dữ liệu tự động, theo thứ tự **dbt → Spark → Airflow → REST API**:
+Nâng pipeline hiện tại thành nền tảng dữ liệu tự động, theo thứ tự **dbt → Spark → Airflow → REST API**:
  
-| Công nghệ | Vai trò |
-|---|---|
-| **dbt** | Thay `02_transform_load.sql` bằng models + tests, sinh lineage graph tự động |
-| **Spark** | Xử lý phân tán toàn bộ 4 file gốc (~7.4GB) thay vì 2 file hiện tại, xuất Parquet sạch |
-| **Airflow** | Đóng gói pipeline thành 1 DAG chạy theo lịch, tự retry khi lỗi |
-| **REST API** | Expose dữ liệu warehouse qua FastAPI, có thể trigger Airflow chạy thủ công |
+| Công nghệ | Vai trò | Trạng thái |
+|---|---|---|
+| **dbt** | Thay `02_transform_load.sql` bằng models + tests, sinh lineage graph tự động | ✅ Hoàn tất |
+| **Spark** | Xử lý phân tán toàn bộ 4 file gốc (~7.4GB) thay vì 2 file hiện tại, xuất Parquet sạch | ⏳ Tiếp theo |
+| **Airflow** | Đóng gói pipeline thành 1 DAG chạy theo lịch, tự retry khi lỗi | ⏳ |
+| **REST API** | Expose dữ liệu warehouse qua FastAPI, có thể trigger Airflow chạy thủ công | ⏳ |
  
 → Sơ đồ luồng chi tiết (10 luồng, có đánh số) và kế hoạch triển khai từng bước: [`docs/roadmap.md`](docs/roadmap.md)
