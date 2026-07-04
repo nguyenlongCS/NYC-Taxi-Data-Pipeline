@@ -1,8 +1,8 @@
 # Checklist — Đã thực hiện
 
 ## Hạ tầng
-- [x] Cài Docker Desktop, viết `docker-compose.yml` (Postgres + pgAdmin + Metabase)
-- [x] Named volume cho cả 3 service (`pgdata`, `pgadmin_data`, `metabase_data`) — persist qua restart
+- [x] Cài Docker Desktop, viết `docker-compose.yml` (Postgres + pgAdmin + Metabase + Spark)
+- [x] Named volume cho cả 3 service DB/BI (`pgdata`, `pgadmin_data`, `metabase_data`) — persist qua restart
 
 ## Dữ liệu
 - [x] Tải dataset NYC Yellow Taxi 2015-2016 từ Kaggle (7.4GB, 4 file)
@@ -24,6 +24,15 @@
 - [x] dbt tests — 8 cột FK (`not_null` + `relationships`) + 5 singular test ứng 5 điều kiện lọc gốc → **38/38 PASS**
 - [x] Archive `02_transform_load.sql` ra `sql/archive/`, rút gọn `01_create_schema.sql` (bỏ DDL `dwh.*`)
 
+## ETL (Spark — thay thế `load_staging.py` cho khối lượng lớn, xem `spark_jobs/`)
+- [x] Thêm service `spark` vào `docker-compose.yml` — image `spark:python3` (Docker Official Image, Spark 4.1.2, local mode)
+  - ⚠️ Đổi từ `bitnami/spark:3.5` ban đầu — Bitnami ngừng phát hành tag miễn phí từ giữa 2025 (xem `troubleshooting.md` mục 12)
+- [x] `spark_jobs/clean_taxi_data.py` — đọc 2 file CSV, ép kiểu dữ liệu khớp `staging.yellow_trips` (DecimalType, TimestampType), audit NULL sinh ra do cast lỗi, ghi Parquet (`processed_data/yellow_trips_clean/`, 8 file)
+  - Tắt `spark.sql.ansi.enabled` (Spark 4.x mặc định bật, khác hành vi cast của Spark 3.x — xem `troubleshooting.md` mục 13)
+  - Gộp toàn bộ audit + checksum vào 1 lượt `.agg()` duy nhất, không dùng `.cache()` — tránh OOM khi xử lý 22 triệu dòng trong container giới hạn RAM
+- [x] `load_parquet_to_staging.py` — đọc từng file Parquet, nạp vào `staging.yellow_trips` bằng `psycopg2.COPY` (thay thế vai trò `load_staging.py`, giữ lại file cũ làm phương án dự phòng)
+- [x] Đối chiếu checksum khớp 100% với staging nạp bằng CSV trực tiếp: count 22,288,907; `SUM(total_amount)` 348,188,436.08; `SUM(trip_distance)` 108,299,074.48; `SUM(fare_amount)` 277,491,448.58
+
 ## Phân tích & Dashboard
 - [x] 5 câu SQL phân tích trong `sql/analytics/` (doanh thu theo giờ, xu hướng theo tuần, phân bố thanh toán, tip theo vendor, rush hour impact)
 - [x] Kết nối Metabase tới `taxi_dwh`, tạo 5 Question + gộp thành 1 Dashboard
@@ -38,6 +47,6 @@
 
 ## Chưa làm (xem `docs/roadmap.md`)
 - [ ] `dbt docs generate` — sinh lineage graph cho portfolio
-- [ ] Spark — xử lý toàn bộ 4 file (~7.4GB)
+- [ ] Spark — mở rộng xử lý toàn bộ 4 file (~7.4GB), hiện mới dùng 2 file như các giai đoạn trước
 - [ ] Airflow — orchestrate pipeline theo lịch
 - [ ] REST API — expose dữ liệu qua FastAPI
