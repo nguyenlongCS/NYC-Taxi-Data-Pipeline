@@ -42,6 +42,32 @@ services:
     depends_on:
       - postgres
 
+  # ------------------------------------------------------------
+  # Spark — giai đoạn "Extract & Clean" (xem docs/roadmap.md, luồng 1-2)
+  # Local mode (local[*]), không tách master/worker — đủ dùng cho khối
+  # lượng dữ liệu hiện tại (2 file, ~3.5GB), giữ đúng phạm vi 1 tuần.
+  # Không phụ thuộc Postgres: bước này chỉ đọc CSV -> ghi Parquet.
+  # Nạp Parquet vào staging là bước riêng, chạy bằng
+  # load_parquet_to_staging.py trên máy host (xem docs/pipeline.md).
+  #
+  # ⚠️ Dùng Docker Official Image `spark` (tag `python3`, có sẵn PySpark),
+  # KHÔNG dùng `bitnami/spark` — Bitnami đã ngừng phát hành tag miễn phí
+  # cho image này từ giữa 2025 (repo public giờ "No tags available",
+  # image đầy đủ chỉ dành cho khách hàng trả phí "Bitnami Secure Images").
+  # Xem docs/troubleshooting.md mục 12 để biết chi tiết lỗi đã gặp.
+  # ------------------------------------------------------------
+  spark:
+    image: spark:python3
+    container_name: taxi_spark
+    restart: "no"
+    volumes:
+      - ./raw_data:/opt/spark_data/raw_data:ro
+      - ./spark_jobs:/opt/spark_data/spark_jobs:ro
+      - ./processed_data:/opt/spark_data/processed_data
+    # Container không cần chạy nền — dùng lệnh `docker compose run` để thực thi job
+    # theo yêu cầu (xem dbt/README.md kiểu tương tự cho cách chạy job dbt).
+    command: [ "sleep", "infinity" ]
+
 volumes:
   pgdata:
   metabase_data:
