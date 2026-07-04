@@ -45,7 +45,7 @@ services:
   # ------------------------------------------------------------
   # Spark — giai đoạn "Extract & Clean" (xem docs/roadmap.md, luồng 1-2)
   # Local mode (local[*]), không tách master/worker — đủ dùng cho khối
-  # lượng dữ liệu hiện tại (2 file, ~3.5GB), giữ đúng phạm vi 1 tuần.
+  # lượng dữ liệu hiện tại (2 file, ~3.5GB).
   # Không phụ thuộc Postgres: bước này chỉ đọc CSV -> ghi Parquet.
   # Nạp Parquet vào staging là bước riêng, chạy bằng
   # load_parquet_to_staging.py trên máy host (xem docs/pipeline.md).

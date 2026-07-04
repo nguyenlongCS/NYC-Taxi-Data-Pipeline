@@ -7,7 +7,7 @@
 ## Dữ liệu
 - [x] Tải dataset NYC Yellow Taxi 2015-2016 từ Kaggle (7.4GB, 4 file)
 - [x] Khảo sát cấu trúc CSV gốc (19 cột, dùng lat/long thay vì zone ID)
-- [x] Chọn phạm vi dùng 2 file (2016-01, 2016-02 — ~3.5GB) cho bản rút gọn 1 tuần
+- [x] Chọn phạm vi dùng 2 file (2016-01, 2016-02 — ~3.5GB) 
 
 ## ETL (SQL thủ công — bản gốc, xem `sql/archive/`)
 - [x] `01_create_schema.sql` — tạo schema `staging` + `dwh`, toàn bộ bảng dim/fact
