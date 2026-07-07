@@ -1,0 +1,4 @@
+# Chỉ 1 package duy nhất -- để DockerOperator gọi được Docker daemon của
+# host (docker-outside-of-docker) chạy Spark/loader/dbt trong container
+# riêng. KHÔNG thêm dbt/pandas/pyarrow vào đây (xem ghi chú trong Dockerfile).
+apache-airflow-providers-docker==3.14.0
