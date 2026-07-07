@@ -8,7 +8,7 @@ Bốn hướng mở rộng dưới đây được chọn có chủ đích (khôn
 |---|---|---|
 | **dbt** | 3, 4 | ✅ Hoàn tất |
 | **Spark** | 1, 2 | ✅ Hoàn tất (2 file, ~3.5GB — xem ghi chú "Phạm vi đã triển khai" bên dưới) |
-| **Airflow** | 7, 8, 9 | ⏳ Tiếp theo |
+| **Airflow** | 7, 8, 9 | ✅ Hoàn tất (kiến trúc docker-outside-of-docker — xem ghi chú bên dưới) |
 | **REST API** | 5, 10 | ⏳ |
 
 ## Bảng luồng chi tiết
@@ -66,20 +66,26 @@ Triển khai theo thứ tự này vì có phụ thuộc lẫn nhau — công ngh
 - Mục 12 — `bitnami/spark:3.5` không còn tag miễn phí, đổi sang `spark:python3`.
 - Mục 13 — Spark job bị `OutOfMemoryError` do `.cache()` 2 bản dữ liệu đầy đủ + 28 lượt quét riêng lẻ; sửa bằng cách gộp thành 1 lượt `.agg()` duy nhất, bỏ `.cache()`, đồng thời phải tắt `spark.sql.ansi.enabled` (Spark 4.x mặc định bật, khác hành vi cast của Spark 3.x).
 
-### 3. Airflow — dựng luồng (7), (8), (9)
+### 3. Airflow — dựng luồng (7), (8), (9) ✅ Hoàn tất
 
 **Vì sao làm sau dbt và Spark:** Airflow chỉ "gói" và lên lịch cho các bước đã chạy ổn định độc lập trước đó.
 
-**Việc cụ thể (ứng với luồng 7 → 8 → 9, chạy tuần tự trong 1 DAG):**
-- Thêm service `airflow` vào hạ tầng.
-- 1 DAG, task nối tiếp:
-  1. `run_spark_job` — ứng **luồng 7** (Airflow → Spark)
-  2. `load_staging` — ứng **luồng 8** (Airflow → staging), gọi `load_parquet_to_staging.py`
-  3. `dbt_run` + `dbt_test` — ứng **luồng 9** (Airflow → dbt)
-  4. `notify` — log/thông báo kết quả
-- `schedule_interval='@monthly'`, retry khi lỗi tạm thời.
+**Kiến trúc thực tế đã triển khai — chi tiết hơn dự tính ban đầu:** roadmap gốc chỉ dự tính "thêm service `airflow`" chung chung. Bản đã triển khai dùng kiến trúc **docker-outside-of-docker**: Airflow không tự chạy Spark/dbt/loader trong chính nó, mà mỗi task gọi ra 1 **container Docker riêng biệt** qua `DockerOperator`, tương tự cách `docker compose run --rm spark ...` chạy thủ công trước đây. Lý do: tránh xung đột dependency giữa `apache-airflow` và `dbt-core` (2 bộ thư viện có ràng buộc version dễ đụng nhau) — bài học rút ra sau khi thử nghiệm cài chung 1 image ban đầu bị lỗi `pip install` treo/fail (xem `docs/troubleshooting.md`).
 
-**Kết quả:** `airflow/dags/taxi_pipeline_dag.py`, demo được trên Airflow UI (`localhost:8080`).
+**Việc cụ thể (ứng với luồng 7 → 8 → 9, chạy tuần tự trong 1 DAG):**
+- Thêm 3 service vào `docker-compose.yml`: `airflow-init` (chạy 1 lần — tạo database metadata, migrate, tạo user admin), `airflow-scheduler`, `airflow-webserver` (tách riêng, không dùng `airflow standalone`, để tránh OOM do gộp 2 tiến trình).
+- Metadata Airflow (`airflow_db`) tạo **trong CHÍNH container `taxi_postgres`** đang có sẵn (không thêm container Postgres riêng) — đúng tinh thần gọn nhẹ của roadmap.
+- 3 image build riêng cho từng loại task, KHÔNG image nào chung dependency với Airflow:
+  - `spark:python3` (đã có sẵn, không đổi) — task `run_spark_job`, ứng **luồng 7**
+  - `taxi-loader` (mới — `docker/taxi-loader/`, chỉ chứa `pandas`/`psycopg2`/`pyarrow`) — task `load_staging`, gọi `load_parquet_to_staging.py`, ứng **luồng 8**
+  - `taxi-dbt` (mới — `docker/taxi-dbt/`, chỉ chứa `dbt-postgres`) — task `dbt_build` (chạy `dbt build`, gộp cả run+test), ứng **luồng 9**
+- 1 DAG (`airflow/dags/taxi_pipeline_dag.py`), 3 task nối tiếp: `run_spark_job >> load_staging >> dbt_build`. `schedule="@monthly"`, `max_active_runs=1`, retry khi lỗi tạm thời.
+- `docker-compose.yml` chỉ tham chiếu biến môi trường (`${VAR}`, không giá trị/mặc định) — toàn bộ giá trị thật gộp chung 1 file `.env`/`.env.example` duy nhất ở gốc project, dùng chung cho cả Postgres/dbt/Airflow.
+- `pgadmin`/`metabase` gắn Compose profile `tools` — không tự khởi động khi chạy Airflow (tiết kiệm RAM cho máy dev cấu hình vừa phải), chỉ bật khi cần (`docker compose --profile tools up -d`).
+
+**Sự cố đáng chú ý gặp phải khi triển khai (xem chi tiết `docs/troubleshooting.md` mục 14-19):** lỗi hạ tầng BuildKit/containerd khi build image Airflow; thiếu biến môi trường `HOST_PROJECT_DIR` ở container `airflow-init` gây `KeyError` lúc import DAG; network không đồng bộ sau khi `up` chỉ định vài service; **OOM thực sự** (`StatusCode 137`) do `load_parquet_to_staging.py` bản đầu nạp nguyên file Parquet + duplicate buffer CSV vào RAM — sửa triệt để bằng cách đọc theo batch (`pyarrow.iter_batches`, không phụ thuộc dung lượng file); và hiện tượng "page-cache thrashing" (CPU 100% nhưng gần như đứng im nhiều giờ) khi `mem_limit` đặt quá sát.
+
+**Kết quả:** `airflow/dags/taxi_pipeline_dag.py`, demo được trên Airflow UI (`localhost:8080`). Đã chạy thành công cả 2 kiểu run: trigger thủ công (`manual`) và tự động theo lịch (`scheduled`), đối chiếu số liệu khớp 100% bản gốc (`dim_date` 506, `dim_time` 1440, `fact_trips` 21,792,952 — xem `docs/checklist.md`).
 
 ### 4. REST API — dựng luồng (5), (6 đã có sẵn), (10)
 

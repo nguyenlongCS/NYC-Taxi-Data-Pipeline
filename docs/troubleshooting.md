@@ -257,6 +257,102 @@ py4j.protocol.Py4JJavaError: An error occurred while calling o269.count.
 
 ---
 
+## 14. Lỗi: BuildKit `failed to commit ... snapshot does not exist` khi build image Airflow
+
+**Log lỗi:**
+```
+#16 ERROR: failed to commit 8rbueiqdwb0mbd91qwn6lp5fu to vqptgmeirso1k4blp7xkyhwyx during finalize:
+failed to stat active key during commit: snapshot 8rbueiqdwb0mbd91qwn6lp5fu does not exist: not found
+```
+
+**Nguyên nhân:** lỗi hạ tầng của chính containerd snapshotter trong Docker Desktop (không liên quan tới nội dung Dockerfile) — xảy ra ngay cả khi build **từng image một, không song song**, và lặp lại y hệt ở image `apache/airflow:2.10.5-python3.12` (image gốc nhiều layer, dung lượng lớn).
+
+**Cách xử lý:**
+1. Dọn cache build hỏng: `docker builder prune -af`
+2. Nếu vẫn lỗi: tắt tính năng thử nghiệm **Docker Desktop → Settings → General → "Use containerd for pulling and storing images"**, Apply & restart, build lại.
+3. Nếu vẫn lỗi: build bằng legacy builder — `$env:DOCKER_BUILDKIT = "0"` trước khi `docker compose build`.
+
+**Bài học tổng quát:** khi lỗi build không đổi dù build lẻ từng image, không phải lỗi Dockerfile — nghi ngay containerd/BuildKit của Docker Desktop, thử dọn cache trước khi sửa code.
+
+---
+
+## 15. Lỗi: `KeyError: 'HOST_PROJECT_DIR'` khi `airflow-init` kiểm tra DAG import
+
+**Log lỗi:**
+```
+File "/opt/airflow/dags/taxi_pipeline_dag.py", line 38, in <module>
+    HOST_PROJECT_DIR = os.environ["HOST_PROJECT_DIR"]
+KeyError: 'HOST_PROJECT_DIR'
+```
+
+**Nguyên nhân:** DAG cần biến `HOST_PROJECT_DIR` ngay lúc **import module** (để lắp đường dẫn mount cho `DockerOperator`). Biến này chỉ được khai trong phần `environment:` của service `airflow-scheduler`, **quên khai thêm** cho `airflow-init` — mà bước "kiểm tra DAG import" (`airflow dags list-import-errors`) lại chạy ngay trong chính container `airflow-init`.
+
+**Cách xử lý:** thêm `HOST_PROJECT_DIR` (và `TAXI_DOCKER_NETWORK`) vào `environment:` của **cả** service `airflow-init` lẫn `airflow-scheduler`, không chỉ 1 trong 2.
+
+**Bài học tổng quát:** bất kỳ container nào có bước "parse/import DAG" (kể cả container init chỉ chạy 1 lần) đều cần đủ biến môi trường mà DAG đọc lúc import — không chỉ container thực thi task.
+
+---
+
+## 16. Lỗi: `could not translate host name "postgres" to address` sau khi chỉ `up` một phần service
+
+**Log lỗi:**
+```
+sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) could not translate host name "postgres"
+to address: Temporary failure in name resolution
+```
+
+**Nguyên nhân:** chạy `docker compose up -d airflow-scheduler airflow-webserver` (chỉ định đích danh 2 service) sau khi đã thêm cấu hình `networks: taxi_net` mới vào file — Compose **không tự "recreate"** container `postgres` đang chạy sẵn dù cấu hình của nó đã đổi, nên nó vẫn nằm trong network cũ, còn 2 container Airflow (mới tạo) join network mới → 2 bên không cùng network, không phân giải được tên nhau.
+
+**Cách xử lý:**
+```powershell
+docker compose down      # KHÔNG thêm -v, để giữ nguyên volume pgdata
+docker compose up -d     # tạo lại toàn bộ container theo đúng cấu hình mới nhất
+```
+Xác nhận lại bằng `docker network inspect taxi_net` — phải thấy đủ tất cả container liên quan trong cùng 1 network.
+
+**Bài học tổng quát:** sau khi đổi cấu hình `networks:`/`volumes:` cấp service trong `docker-compose.yml`, `up -d` chỉ đích danh vài service **không đủ** để áp dụng thay đổi cho các service khác đang chạy sẵn — cần `down` (không `-v`) rồi `up -d` lại toàn bộ.
+
+---
+
+## 17. Lỗi: `DockerContainerFailedException: Docker container failed: {'StatusCode': 137}` (OOM)
+
+**Log lỗi:**
+```
+airflow.providers.docker.exceptions.DockerContainerFailedException: Docker container failed: {'StatusCode': 137}
+```
+
+**Nguyên nhân:** `load_parquet_to_staging.py` (bản đầu) đọc **nguyên 1 file Parquet** (~2.7 triệu dòng) vào 1 DataFrame pandas, rồi ghi thêm **1 bản sao thứ 2** của toàn bộ dữ liệu đó ra buffer CSV trong RAM (`io.StringIO`) trước khi `COPY` vào Postgres — RAM đỉnh điểm phải chứa 2 bản đầy đủ dữ liệu cùng lúc. Container này ban đầu **không giới hạn `mem_limit`**, chạy chung máy ảo WSL2 (8GB) với Postgres + Airflow scheduler/webserver + Metabase + pgAdmin → hết RAM, hệ điều hành `SIGKILL` (`StatusCode 137`).
+
+**Cách xử lý (triệt để, không phải chỉ tăng RAM):** viết lại `load_parquet_to_staging.py` đọc Parquet theo **từng lô nhỏ** (`pyarrow.parquet.ParquetFile.iter_batches(batch_size=200_000)`) thay vì nạp nguyên file — RAM sử dụng giờ chỉ tỉ lệ với số dòng/lô, không tỉ lệ với dung lượng file, không phụ thuộc RAM cấp cho WSL2 nữa.
+
+**Bài học tổng quát:** khi 1 script Python trong container không giới hạn `mem_limit` xử lý dữ liệu lớn, nên mặc định thiết kế theo kiểu streaming/chunked ngay từ đầu — "nạp hết vào RAM rồi xử lý" chỉ an toàn với dữ liệu đủ nhỏ, không phải chiến lược nên dùng cho pipeline có khả năng mở rộng dữ liệu về sau (đúng tinh thần "mở rộng lên 4 file/~7.4GB" đang ghi trong `docs/roadmap.md`).
+
+---
+
+## 18. Vấn đề: `mem_limit` quá sát gây "page-cache thrashing" (CPU 100% nhưng gần như đứng im nhiều giờ)
+
+**Triệu chứng:** sau khi sửa lỗi #17 (đọc theo batch), đặt `mem_limit="512m"` cho container `taxi-loader`. Task `load_staging` chạy **16+ tiếng không xong** (bình thường chỉ mất vài chục phút), nhưng **không hề bị kill** — `docker stats` cho thấy `CPU 100.48%`, `MEM 375.1MiB / 512MiB` (73%), tức đang hoạt động liên tục chứ không đứng yên.
+
+**Nguyên nhân:** khi container đọc file Parquet qua **bind-mount từ Windows**, nhân Linux giữ "page cache" của file đó trong RAM để đọc nhanh hơn — cache này **bị tính vào `mem_limit` của cgroup**. Với giới hạn chỉ 512MB quá sát so với dung lượng file đang đọc, nhân hệ điều hành phải liên tục giải phóng rồi đọc lại cache (thrashing) để không vượt trần — CPU chạy 100% chỉ để dọn bộ nhớ, không phải xử lý dữ liệu thật. Đây là kiểu lỗi "chậm bất thường do tranh chấp bộ nhớ", khác hẳn kiểu "fail nhanh, rõ ràng" của OOM Kill ở mục #17.
+
+**Cách xử lý:** tăng `mem_limit` lên `1536m` — đủ dư cho cả batch dữ liệu (rất nhỏ, ~200,000 dòng/lô) lẫn page cache của file, không còn phải giành giật bộ nhớ liên tục. Dừng task đang treo bằng `docker kill <container_id>` trước khi trigger lại.
+
+**Bài học tổng quát:** `mem_limit` cho container đọc file lớn qua bind-mount cần có biên độ dư cho page cache, không chỉ tính riêng dung lượng dữ liệu Python thực sự cần — đặt giới hạn quá sát có thể gây triệu chứng "chạy cực chậm nhưng không crash", dễ nhầm là bug logic thay vì vấn đề tài nguyên.
+
+---
+
+## 19. Tối ưu: RAM 8GB WSL2 không đủ dư khi chạy đồng thời Airflow + pgAdmin + Metabase
+
+**Triệu chứng:** không phải lỗi cụ thể, mà là rủi ro phát hiện khi debug lỗi #17/#18 — `docker stats` cho thấy các container không tham gia pipeline (`taxi_pgadmin`, `taxi_metabase`) vẫn chiếm RAM thường trực, làm giảm biên độ an toàn cho các container thực sự cần khi Airflow chạy DAG.
+
+**Nguyên nhân:** `pgadmin`/`metabase` khởi động mặc định cùng `docker compose up -d`, dù chúng **không tham gia** luồng ETL — chỉ dùng để tự tay xem DB hoặc làm dashboard sau khi đã có dữ liệu.
+
+**Cách xử lý:** gắn Compose profile `tools` cho 2 service này — mặc định `docker compose up -d` sẽ **không** khởi động chúng nữa; chỉ bật khi cần bằng `docker compose --profile tools up -d`.
+
+**Bài học tổng quát:** trong môi trường RAM hạn chế (máy dev cá nhân), tách rõ "service lõi cần cho pipeline chạy" khỏi "service tiện ích chỉ dùng thủ công" bằng Compose profiles — tránh phải nhớ tắt/bật tay mỗi lần, giảm rủi ro quên.
+
+---
+
 ## Bảng tổng hợp nhanh
 
 | # | Lỗi/Vấn đề | Nguyên nhân gốc | Fix chính |
@@ -274,3 +370,10 @@ py4j.protocol.Py4JJavaError: An error occurred while calling o269.count.
 | 11 | `dbt seed` bị lỗi TRUNCATE-FK | Bảng `fact_trips` cũ (có FK cứng) chưa được dọn khi chuyển sang dbt | `DROP TABLE dwh.fact_trips` (chỉ 1 lần khi bàn giao) |
 | 12 | `bitnami/spark:3.5` không pull được | Bitnami ngừng phát hành tag miễn phí từ giữa 2025 | Đổi sang Docker Official Image `spark:python3` |
 | 13 | Spark job OOM (`Java heap space`) | `.cache()` 2 bản đầy đủ 22M dòng + 28 lượt `.count()` riêng lẻ, RAM container ~1GB | Gộp thành 1 lượt `.agg()`, bỏ `.cache()`; tắt ANSI mode (Spark 4.x) để cast lỗi trả NULL thay vì crash |
+| 14 | BuildKit `failed to commit ... snapshot does not exist` | Lỗi hạ tầng containerd snapshotter của Docker Desktop | `docker builder prune -af`; tắt "containerd image store" nếu cần |
+| 15 | `KeyError: 'HOST_PROJECT_DIR'` lúc DAG import | Thiếu biến môi trường ở container `airflow-init` (chỉ khai ở scheduler) | Thêm biến vào environment của CẢ airflow-init lẫn airflow-scheduler |
+| 16 | `could not translate host name "postgres"` | `up -d` chỉ định vài service không áp dụng lại network mới cho service khác đang chạy sẵn | `docker compose down` (không `-v`) rồi `up -d` lại toàn bộ |
+| 17 | `DockerContainerFailedException StatusCode 137` (OOM) | Nạp nguyên file Parquet + duplicate CSV buffer trong RAM, không giới hạn mem_limit | Đọc Parquet theo batch (`pyarrow.iter_batches`) — RAM không còn tỉ lệ với dung lượng file |
+| 18 | Task chạy 100% CPU nhưng gần như đứng im nhiều giờ | `mem_limit` quá sát (512m), page cache của file bind-mount bị tính vào cgroup → thrashing | Tăng `mem_limit` lên đủ dư (1536m) |
+| 19 | RAM 8GB WSL2 không đủ dư khi chạy song song mọi service | pgAdmin/Metabase khởi động mặc định dù không tham gia pipeline | Compose profile `tools` — mặc định không bật, chỉ bật khi cần |
+

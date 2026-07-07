@@ -45,8 +45,19 @@
 - [x] `README.md` ở thư mục gốc — tổng quan, quickstart, liên kết tới toàn bộ docs
 - [x] `dbt/README.md` — setup venv, lệnh chạy dbt, các lỗi Windows đã gặp
 
+## ETL (Airflow — orchestrate pipeline, xem `airflow/`)
+- [x] Kiến trúc "Airflow chỉ điều phối, không thực thi trực tiếp" — image Airflow (`taxi-airflow`) CHỈ cài `apache-airflow-providers-docker`, KHÔNG cài dbt/pandas/pyarrow → tránh xung đột dependency
+- [x] Mọi task chạy qua `DockerOperator` trong container riêng, tự chứa dependency của nó: `spark:python3` (Spark, không đổi), `taxi-loader` (mới — `docker/taxi-loader/`), `taxi-dbt` (mới — `docker/taxi-dbt/`)
+- [x] `docker-compose.yml` chỉ tham chiếu biến môi trường (`${VAR}` thuần, không giá trị/mặc định) — toàn bộ giá trị thật nằm ở `.env`, mẫu ở `.env.example`
+- [x] Airflow metadata dùng chung container `taxi_postgres` hiện có (database riêng `airflow_db`, tạo qua `TEMPLATE template0` + `LC_COLLATE/LC_CTYPE='C'` để tránh lỗi collation)
+- [x] Tách `airflow-scheduler`/`airflow-webserver` thành 2 service riêng (không dùng `airflow standalone`), mỗi service `mem_limit` riêng — tránh OOM do gộp chung
+- [x] `airflow-init` chạy tạo DB + `airflow db migrate` + tạo user admin + tự kiểm tra `airflow dags list-import-errors` trước khi cho phép scheduler/webserver khởi động (`depends_on: condition: service_completed_successfully`)
+- [x] `load_parquet_to_staging.py` viết lại theo streaming batch (`pyarrow.iter_batches()`), RAM chỉ tỉ lệ với `LOADER_BATCH_SIZE` — không phụ thuộc dung lượng file
+- [x] DAG `taxi_pipeline` (`run_spark_job` → `load_staging` → `dbt_build`), `schedule="@monthly"`, `max_active_runs=1`
+- [x] pgAdmin/Metabase gắn `profiles: ["tools"]` — không tự khởi động cùng Airflow, dành RAM cho pipeline
+- [x] Chạy thành công cả 2 kiểu run: `scheduled` (tự động khi unpause) và `manual` (tự trigger) — xem `docs/troubleshooting.md` mục 14-19 cho toàn bộ lỗi đã gặp và cách xử lý
+
 ## Chưa làm (xem `docs/roadmap.md`)
 - [ ] `dbt docs generate` — sinh lineage graph cho portfolio
 - [ ] Spark — mở rộng xử lý toàn bộ 4 file (~7.4GB), hiện mới dùng 2 file như các giai đoạn trước
-- [ ] Airflow — orchestrate pipeline theo lịch
 - [ ] REST API — expose dữ liệu qua FastAPI

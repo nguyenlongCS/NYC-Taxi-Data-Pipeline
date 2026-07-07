@@ -276,3 +276,29 @@ Kết nối thành công — trạng thái "Đã kết nối" (chấm xanh) xác
 - Tạo Dashboard: quay về trang chủ → **"Mới"** → **"Bảng điều khiển"** → đặt tên → thêm lần lượt cả 5 câu hỏi đã lưu vào dashboard → **Lưu**.
 
 ![alt text](images/dashboard.png)
+## 16. Setup Airflow (điều phối pipeline tự động)
+
+Thay vì chạy tay tuần tự các bước 9/10 → 12 mỗi lần có dữ liệu mới, Airflow đóng gói toàn bộ thành 1 DAG (`run_spark_job -> load_staging -> dbt_build`), chạy theo lịch `@monthly` hoặc trigger thủ công qua UI.
+
+Hướng dẫn đầy đủ (build image, khởi tạo, kiểm tra, bảng đối chiếu lỗi thường gặp) nằm ở [`airflow/README.md`](../airflow/README.md) — không lặp lại chi tiết ở đây, chỉ tóm tắt các bước chính:
+
+```powershell
+# 1. Tạo .env từ .env.example (nếu chưa có), điền AIRFLOW_FERNET_KEY + HOST_PROJECT_DIR
+cp .env.example .env
+
+# 2. Build image
+docker compose build airflow-init taxi-loader taxi-dbt
+
+# 3. Khởi tạo (tạo database airflow_db, migrate, tạo user admin)
+docker compose up airflow-init
+
+# 4. Khởi động scheduler + webserver
+docker compose up -d airflow-scheduler airflow-webserver
+```
+
+Mở `http://localhost:8080`, đăng nhập bằng `AIRFLOW_ADMIN_USER`/`AIRFLOW_ADMIN_PASSWORD` trong `.env`, trigger DAG `taxi_pipeline` để chạy full pipeline tự động.
+
+⚠️ **Lưu ý:** `pgadmin`/`metabase` gắn Compose profile `tools`, không tự khởi động cùng lệnh `docker compose up -d` mặc định nữa (tiết kiệm RAM khi chạy Airflow) — cần dùng khi nào thì chạy thêm:
+```powershell
+docker compose --profile tools up -d
+```

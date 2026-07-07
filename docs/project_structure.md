@@ -85,8 +85,36 @@ NYC-Taxi-Data-Pipeline/
 ├── .venv-dbt/                       # ⚠️ Không commit (đã .gitignore) — venv Python 3.12 riêng
 │                                    # cho dbt, tách khỏi Python hệ thống (xem dbt/README.md)
 │
-├── docker-compose.yml               # Postgres + pgAdmin + Metabase + Spark, DB/BI có named volume persist
-│                                    # (spark không cần volume riêng — không giữ trạng thái, xem ghi chú trong file)
+├── airflow/                         # ✅ Điều phối pipeline bằng Airflow (xem docs/roadmap.md)
+│   ├── Dockerfile                   # Image "taxi-airflow" — CHỈ Airflow + docker provider,
+│   │                                # KHÔNG cài dbt/pandas (tránh xung đột dependency)
+│   ├── requirements-airflow.txt
+│   ├── README.md                    # Setup, kiến trúc docker-outside-of-docker,
+│   │                                # bảng đối chiếu lỗi đã gặp
+│   ├── dags/
+│   │   └── taxi_pipeline_dag.py     # 1 DAG: run_spark_job >> load_staging >> dbt_build,
+│   │                                # cả 3 task chạy qua DockerOperator, mỗi task 1 image riêng
+│   └── scripts/
+│       ├── create_airflow_db.py     # Tạo database airflow_db trong CHÍNH container postgres
+│       └── entrypoint-init.sh       # Chạy 1 lần bởi airflow-init: tạo DB, migrate, tạo user admin
+│
+├── docker/                          # ✅ Build context cho 2 image phụ Airflow gọi qua DockerOperator
+│   │                                # (tách riêng khỏi image Airflow để tránh xung đột dependency)
+│   ├── taxi-loader/                 # Image "taxi-loader" — chạy load_parquet_to_staging.py
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   └── load_parquet_to_staging.py   # Bản copy (Dockerfile COPY không thấy file ngoài context)
+│   └── taxi-dbt/                    # Image "taxi-dbt" — chạy `dbt build` (KHÔNG chung image Airflow)
+│       └── Dockerfile
+│
+├── .env                             # ⚠️ Không commit (đã .gitignore) — giá trị THẬT, dùng chung
+│                                    # cho Postgres/dbt/Airflow. docker-compose.yml CHỈ tham chiếu
+│                                    # ${VAR} tới file này, không có giá trị/mặc định nào trong đó.
+├── .env.example                     # Giá trị MẪU tương ứng — copy thành .env rồi điền giá trị thật
+├── docker-compose.yml               # Postgres + pgAdmin + Metabase + Spark + Airflow (3 service:
+│                                    # airflow-init/airflow-scheduler/airflow-webserver), DB/BI có
+│                                    # named volume persist. pgAdmin/Metabase gắn Compose profile
+│                                    # "tools" — không tự khởi động cùng Airflow, xem airflow/README.md
 ├── .gitignore                       # Loại trừ raw_data/, processed_data/, .env, __pycache__/, dbt/target/, .venv-dbt/...
 ├── .env.example                     # Mẫu biến môi trường cho dbt (có default khớp docker-compose.yml)
 ├── requirements.txt                 # psycopg2-binary, pandas, pyarrow, dbt-postgres...
