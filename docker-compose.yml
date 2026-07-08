@@ -77,6 +77,41 @@ services:
     networks:
       - taxi_net
 
+  # profiles: ["tools"] -- cùng lý do như pgAdmin/Metabase: API không tham
+  # gia luồng ETL/Airflow, chỉ phục vụ đọc dữ liệu đã có sẵn + trigger DAG
+  # thủ công (luồng 5, 6, 10 trong docs/roadmap.md). Không tự khởi động
+  # cùng Airflow để tránh chiếm RAM (xem docs/troubleshooting.md mục 19).
+  # Muốn dùng: docker compose --profile tools up -d api
+  api:
+    build:
+      context: ./api
+    image: taxi-api:latest
+    container_name: taxi_api
+    restart: unless-stopped
+    profiles: ["tools"]
+    ports:
+      - "${API_HOST_PORT}:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      AIRFLOW_BASE_URL: http://airflow-webserver:8080
+      # Dùng để dựng link mở Airflow UI từ TRÌNH DUYỆT trên máy host (khác
+      # AIRFLOW_BASE_URL ở trên, vì "airflow-webserver" chỉ phân giải được
+      # trong network nội bộ Docker) -- ghép theo đúng cổng host thật đang
+      # khai trong .env, tránh lệch nếu AIRFLOW_WEBSERVER_HOST_PORT bị đổi.
+      AIRFLOW_EXTERNAL_URL: http://localhost:${AIRFLOW_WEBSERVER_HOST_PORT}
+      AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+      AIRFLOW_DAG_ID: taxi_pipeline
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - taxi_net
+
   taxi-loader:
     build:
       context: ./docker/taxi-loader
@@ -177,6 +212,12 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
       AIRFLOW__CORE__LOAD_EXAMPLES: ${AIRFLOW_LOAD_EXAMPLES}
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: ${AIRFLOW_EXPOSE_CONFIG}
+      # Bắt buộc để service `api` gọi được REST API v1 của Airflow bằng
+      # Basic Auth (POST /api/pipeline/trigger) -- mặc định Airflow 2.x chỉ
+      # bật auth backend "session" (cookie đăng nhập UI), gọi Basic Auth khi
+      # chưa bật thêm sẽ bị 403 Forbidden dù user/password đúng. Chỉ cần ở
+      # webserver (nơi thực sự phục vụ REST API), không cần ở scheduler.
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
     command: ["webserver"]
     volumes:
       - ./airflow/dags:/opt/airflow/dags:ro
